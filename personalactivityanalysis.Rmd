@@ -1,0 +1,105 @@
+#Personal Activity Analysis
+
+##Background Information
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+##Data Analysis
+
+The first step is to download both data sets for analysis.
+
+```{r,echo=TRUE}
+#download the training data file
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileUrl,destfile="./data/pmltraining.csv")
+training <- read.csv("./data/pmltraining.csv", header=TRUE, sep =",")
+
+#download the testing data file
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileUrl,destfile="./data/pmltraining.csv")
+testing <- read.csv("./data/pmltraining.csv", header=TRUE, sep =",")
+```
+
+Based on the code below, The training data has  19622 observations and 160 features.  The distribtion has measured stances of A,B,C,D,E is:
+
+```{r,echo=TRUE}
+dim(training)
+```
+
+```{r,echo=TRUE}
+table(training$classe)
+```
+
+##Preprocessing the Data
+
+We need to load the necessary packages for analysis.
+
+```{r,echo=TRUE}
+library(caret)
+library(lattice)
+library(ggplot2)
+```
+
+We need to validate our model.  To do that, we use the following code to seperate the data into a training set and validation set.
+
+```{r,echo=TRUE}
+set.seed(54321)
+trainingset <- createDataPartition(training$classe, p=0.8, list=FALSE)
+train <- training[trainingset,]
+validate <- training[-trainingset,]
+```
+
+Next, we need to clean up the missing values from the data.
+
+```{r,echo=TRUE}
+# exclude near zero variance features
+nzvcol <- nearZeroVar(train)
+train <- train[, -nzvcol]
+
+# exclude columns with m40% ore more missing values exclude descriptive
+# columns like name etc
+cntlength <- sapply(train, function(x) {
+    sum(!(is.na(x) | x == ""))
+})
+nullcol <- names(cntlength[cntlength < 0.6 * length(train$classe)])
+descriptcol <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+    "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+train <- train[, !names(train) %in% excludecols]
+```
+
+We will then use randomForest to create our model.
+
+```{r,echo=TRUE}
+library(randomForest)
+```
+
+```{r,echo=TRUE}
+rfModel <- randomForest(classe~., data=train, importance = TRUE, ntrees = 10)
+```
+
+Next, we will test the model on the training set.
+
+```{r,echo=TRUE}
+ptraining <- predict(rfModel, train)
+print(confusionMatrix(ptraining, train$classe))
+```
+
+```{r,echo=TRUE}
+pvalidate <- predict(rfModel, validate)
+print(confusionMatrix(pvalidate, validate$classe))
+```
+
+The validation accuracy from the code above is 99.5%, which shows out model is performing well.
+
+###Prediction
+
+Lastly we need to predict based on our model.
+
+```{r,echo=TRUE}
+ptest <- predict(rfModel, testing)
+ptest
+```
+
